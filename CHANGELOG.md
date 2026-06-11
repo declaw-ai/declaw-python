@@ -5,6 +5,27 @@ All notable changes to the Declaw Python SDK are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.3.0]
+
+_2026-06 train: file-granular volumes, OPA governance._
+
+### Added
+
+- Mode-based volumes: write-back and mount modes with a file-granular
+  backend, plus a detached volume-files API — `volume.files.write()` /
+  `read()` / `list()` / `info()` / `exists()` / `remove()` / `rename()` /
+  `mkdir()`, `volumes.empty()` and `volumes.ingest()` constructors, and
+  volume locks (`acquire` / `renew` / `release` / `status`) (#344).
+- OPA custom-policy support for AI agents: custom policy config with
+  `policy_ref` resolution, `content_gate` for model/domain gating, and
+  out-of-box AI governance packs via `GovernancePacks` (#279, #345).
+
+### Changed
+
+- The per-sandbox audit flag now gates network, command, and filesystem
+  event categories: `enabled=False` suppresses all gated categories
+  while lifecycle and admin events are still recorded (#332).
+
 ## [1.2.0]
 
 ### Added

@@ -1,6 +1,6 @@
 [project]
 name = "declaw"
-version = "1.2.0"
+version = "1.3.0"
 description = "Secure runtime for AI agents with built-in guardrails -- PII scanning, prompt injection defense, network isolation, and egress filtering."
 authors = [{name = "Declaw", email = "hello@declaw.ai"}]
 readme = "README.md"
