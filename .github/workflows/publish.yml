@@ -45,8 +45,10 @@ jobs:
           pipx install poetry
           poetry install --with dev --all-extras
 
+      # --ignore=tests/integration: the integration suite needs a fastapi
+      # mock backend whose deps aren't in the SDK's pyproject (same as CI).
       - name: Test
-        run: poetry run pytest tests/
+        run: poetry run pytest -q --ignore=tests/integration
 
       - name: Build
         run: |
