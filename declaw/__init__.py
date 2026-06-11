@@ -36,6 +36,8 @@ from declaw.exceptions import (
     TimeoutException,
     VersionMismatchException,
 )
+from declaw.governance.main import AsyncGovernancePacks, GovernancePacks
+from declaw.governance.models import GovernanceAdvisory, GovernanceControl, GovernancePack
 from declaw.sandbox.commands.models import (
     CommandResult,
     ProcessInfo,
@@ -105,8 +107,6 @@ from declaw.volumes_async.main import (
     AsyncVolumeLocks,
     AsyncVolumes,
 )
-from declaw.governance.models import GovernanceAdvisory, GovernanceControl, GovernancePack
-from declaw.governance.main import AsyncGovernancePacks, GovernancePacks
 
 __all__ = [
     # Connection

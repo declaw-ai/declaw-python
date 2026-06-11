@@ -212,7 +212,7 @@ class VolumeFiles:
             headers={"Content-Type": "application/octet-stream"},
             timeout=self._request_timeout,
         )
-        return (resp.json() or {}).get("path", path)
+        return str((resp.json() or {}).get("path", path))
 
     def read(self, path: str) -> bytes:
         """Read ``path`` and return its raw bytes."""
@@ -276,7 +276,7 @@ class VolumeFiles:
             json={"path": path},
             timeout=self._request_timeout,
         )
-        return (resp.json() or {}).get("path", path)
+        return str((resp.json() or {}).get("path", path))
 
 
 class VolumeLocks:
@@ -326,9 +326,7 @@ class VolumeLocks:
         )
         return bool((resp.json() or {}).get("released", False))
 
-    def renew(
-        self, path: str, token: str, *, ttl_seconds: Optional[int] = None
-    ) -> Dict[str, Any]:
+    def renew(self, path: str, token: str, *, ttl_seconds: Optional[int] = None) -> Dict[str, Any]:
         """Renew the lock. 409 if you are not the holder."""
         body: Dict[str, Any] = {"path": path, "token": token}
         if ttl_seconds is not None:

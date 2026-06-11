@@ -76,7 +76,7 @@ class AsyncVolumeFiles:
             headers={"Content-Type": "application/octet-stream"},
             timeout=self._request_timeout,
         )
-        return (resp.json() or {}).get("path", path)
+        return str((resp.json() or {}).get("path", path))
 
     async def read(self, path: str) -> bytes:
         """Read ``path`` and return its raw bytes."""
@@ -146,7 +146,7 @@ class AsyncVolumeFiles:
             json={"path": path},
             timeout=self._request_timeout,
         )
-        return (resp.json() or {}).get("path", path)
+        return str((resp.json() or {}).get("path", path))
 
 
 class AsyncVolumeLocks:

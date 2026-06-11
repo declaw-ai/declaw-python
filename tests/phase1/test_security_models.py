@@ -838,8 +838,10 @@ class TestSecurityPolicyContentGate:
 class TestContentGateImportSmoke:
     def test_content_gate_top_level_import(self):
         from declaw import ContentGateConfig
+
         assert ContentGateConfig is not None
 
     def test_content_gate_security_module_import(self):
         from declaw.security import ContentGateConfig
+
         assert ContentGateConfig is not None

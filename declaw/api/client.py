@@ -7,17 +7,6 @@ from typing import Any, AsyncIterable, BinaryIO, Dict, Iterable, Optional, Tuple
 
 import httpx
 
-
-def _connection_limits() -> httpx.Limits:
-    raw = os.environ.get("DECLAW_SDK_CONNECTIONS", "")
-    try:
-        n = int(raw)
-        if n <= 0:
-            n = 64
-    except ValueError:
-        n = 64
-    return httpx.Limits(max_connections=n, max_keepalive_connections=n)
-
 from declaw.connection_config import ConnectionConfig
 from declaw.exceptions import (
     AuthenticationException,
@@ -30,6 +19,18 @@ from declaw.exceptions import (
     SandboxException,
     TimeoutException,
 )
+
+
+def _connection_limits() -> httpx.Limits:
+    raw = os.environ.get("DECLAW_SDK_CONNECTIONS", "")
+    try:
+        n = int(raw)
+        if n <= 0:
+            n = 64
+    except ValueError:
+        n = 64
+    return httpx.Limits(max_connections=n, max_keepalive_connections=n)
+
 
 # Body types we forward to httpx on raw-bytes endpoints. httpx accepts
 # bytes/str, a file-like, and sync/async iterables of bytes; we expose
@@ -193,9 +194,7 @@ class ApiClient:
         params: Optional[Dict[str, Any]] = None,
         timeout: Optional[float] = None,
     ) -> httpx.Response:
-        return self._request_with_retry(
-            "DELETE", path, json=json, params=params, timeout=timeout
-        )
+        return self._request_with_retry("DELETE", path, json=json, params=params, timeout=timeout)
 
     def put(
         self,

@@ -140,10 +140,10 @@ class StdioProcess:
                     event = None
                     continue
                 if raw_line.startswith("event:"):
-                    event = raw_line[len("event:"):].strip()
+                    event = raw_line[len("event:") :].strip()
                     continue
                 if raw_line.startswith("data:"):
-                    payload = raw_line[len("data:"):].strip()
+                    payload = raw_line[len("data:") :].strip()
                     if event == "exit":
                         try:
                             self._exit_code = int(json.loads(payload).get("exit_code", -1))

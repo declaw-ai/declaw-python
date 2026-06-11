@@ -62,12 +62,8 @@ class GovernancePack:
             framework=data.get("framework", ""),
             description=data.get("description", ""),
             gates=list(data.get("gates") or []),
-            enforces=[
-                GovernanceControl.from_dict(e) for e in (data.get("enforces") or [])
-            ],
-            advisory=[
-                GovernanceAdvisory.from_dict(a) for a in (data.get("advisory") or [])
-            ],
+            enforces=[GovernanceControl.from_dict(e) for e in (data.get("enforces") or [])],
+            advisory=[GovernanceAdvisory.from_dict(a) for a in (data.get("advisory") or [])],
             policy_ref=data.get("policy_ref", ""),
             seeded=bool(data.get("seeded", False)),
         )
