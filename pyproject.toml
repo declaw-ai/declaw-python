@@ -1,0 +1,77 @@
+[project]
+name = "declaw"
+version = "1.2.0"
+description = "Secure runtime for AI agents with built-in guardrails -- PII scanning, prompt injection defense, network isolation, and egress filtering."
+authors = [{name = "Declaw", email = "hello@declaw.ai"}]
+readme = "README.md"
+license = "Apache-2.0"
+license-files = ["LICENSE"]
+requires-python = ">=3.10"
+keywords = ["sandbox", "ai-agents", "security", "firecracker", "microvm", "pii", "prompt-injection", "guardrails"]
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Intended Audience :: Developers",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Security",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Topic :: System :: Distributed Computing",
+    "Typing :: Typed",
+]
+dependencies = [
+    "httpx[http2]>=0.27.0",
+    "pydantic>=2.0.0",
+    "packaging>=23.0",
+]
+
+[project.optional-dependencies]
+# Integration extras — each keeps the base install lean. Add another
+# entry per integration without pulling transitive deps into every
+# declaw user's environment.
+openai-agents = ["openai-agents>=0.14"]
+
+[project.urls]
+Homepage = "https://declaw.ai"
+Documentation = "https://docs.declaw.ai"
+Repository = "https://github.com/declaw-ai/declaw-python"
+Changelog = "https://github.com/declaw-ai/declaw-python/blob/main/CHANGELOG.md"
+
+[tool.poetry]
+packages = [{include = "declaw"}]
+
+[tool.poetry.group.dev.dependencies]
+pytest = "^8.0"
+pytest-asyncio = ">=0.24.0"
+mypy = ">=1.10.0"
+ruff = ">=0.5.0"
+black = ">=24.0"
+respx = ">=0.21.0"
+
+[build-system]
+requires = ["poetry-core>=2.0.0"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+
+[tool.mypy]
+python_version = "3.10"
+strict = true
+warn_return_any = true
+warn_unused_configs = true
+
+[tool.ruff]
+target-version = "py310"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "N", "W"]
+
+[tool.black]
+line-length = 100
+target-version = ["py310"]
