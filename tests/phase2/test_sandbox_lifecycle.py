@@ -65,6 +65,21 @@ class TestSandboxCreate:
         assert req_body["envs"] == {"MY_VAR": "hello"}
 
     @respx.mock
+    def test_create_with_vault_refs(self):
+        route = respx.post(f"{API_URL}/sandboxes").mock(
+            return_value=httpx.Response(201, json=SANDBOX_RESP)
+        )
+        Sandbox.create(
+            vault_refs={"STRIPE_KEY": "vault://team/prod/stripe"},
+            api_key="test-key",
+            domain="api.test.dev",
+        )
+        import json
+
+        req_body = json.loads(route.calls[0].request.content)
+        assert req_body["vault_refs"] == {"STRIPE_KEY": "vault://team/prod/stripe"}
+
+    @respx.mock
     def test_create_no_internet(self):
         route = respx.post(f"{API_URL}/sandboxes").mock(
             return_value=httpx.Response(201, json=SANDBOX_RESP)

@@ -16,7 +16,7 @@ GitHub Release from the CHANGELOG block. The tag is the release button.
    Edit `pyproject.toml`:
 
    ```toml
-   [tool.poetry]
+   [project]
    version = "X.Y.Z"
    ```
 
@@ -63,8 +63,16 @@ GitHub Release from the CHANGELOG block. The tag is the release button.
 
    Watch the publish run
    (`gh run list --repo declaw-ai/declaw-python -w publish.yml`), then
-   verify on <https://pypi.org/project/declaw/>. If it fails, nothing
-   was published — fix the cause and `gh run rerun` (the tag stays).
+   verify on <https://pypi.org/project/declaw/>.
+
+   **If the run fails** (nothing reaches PyPI on failure):
+   - *Transient* (runner/network): `gh run rerun` — the tag stays.
+   - *The fix changes repo content* (workflow, tests, packaging): fix in
+     the monorepo → push → re-sync → **delete + re-create the tag** on the
+     new snapshot. A rerun is useless here — tag-push workflows execute
+     from the tagged commit, so the tag must move to the fixed snapshot.
+   - *PyPI was reached*: never move the tag — ship a patch and yank the
+     bad version (below).
 
 ## Yanking a bad release
 

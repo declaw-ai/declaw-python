@@ -23,6 +23,7 @@ from declaw.sandbox_sync.commands.commands import Commands
 from declaw.sandbox_sync.filesystem.filesystem import Filesystem
 from declaw.sandbox_sync.pty import Pty
 from declaw.sandbox_sync.stdio import Stdio
+from declaw.vault import VaultClient, expand_vault_refs
 
 
 class Sandbox(SandboxBase):
@@ -97,6 +98,7 @@ class Sandbox(SandboxBase):
         timeout: Optional[int] = None,
         metadata: Optional[Dict[str, str]] = None,
         envs: Optional[Dict[str, str]] = None,
+        vault_refs: Optional[Dict[str, str]] = None,
         secure: bool = True,
         allow_internet_access: bool = True,
         network: Optional[Union[Dict[str, Any], SandboxNetworkOpts]] = None,
@@ -124,6 +126,9 @@ class Sandbox(SandboxBase):
             body["metadata"] = metadata
         if envs:
             body["envs"] = envs
+        if vault_refs:
+            vault_client = VaultClient(api_key=config.api_key, domain=config.domain)
+            body["vault_refs"] = expand_vault_refs(vault_client, vault_refs)
 
         if not allow_internet_access:
             body["network"] = {"deny_out": [ALL_TRAFFIC]}

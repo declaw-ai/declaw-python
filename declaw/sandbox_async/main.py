@@ -24,6 +24,7 @@ from declaw.sandbox.network import ALL_TRAFFIC, SandboxNetworkOpts
 from declaw.sandbox_async.commands.command_handle import AsyncCommandHandle
 from declaw.sandbox_async.pty import AsyncPty
 from declaw.sandbox_async.stdio import AsyncStdio
+from declaw.vault_async import AsyncVaultClient, expand_vault_refs_async
 
 
 class AsyncSandbox(SandboxBase):
@@ -93,6 +94,7 @@ class AsyncSandbox(SandboxBase):
         timeout: Optional[int] = None,
         metadata: Optional[Dict[str, str]] = None,
         envs: Optional[Dict[str, str]] = None,
+        vault_refs: Optional[Dict[str, str]] = None,
         secure: bool = True,
         allow_internet_access: bool = True,
         network: Optional[Union[Dict[str, Any], SandboxNetworkOpts]] = None,
@@ -119,6 +121,9 @@ class AsyncSandbox(SandboxBase):
             body["metadata"] = metadata
         if envs:
             body["envs"] = envs
+        if vault_refs:
+            vault_client = AsyncVaultClient(api_key=config.api_key, domain=config.domain)
+            body["vault_refs"] = await expand_vault_refs_async(vault_client, vault_refs)
         if not allow_internet_access:
             body["network"] = {"deny_out": [ALL_TRAFFIC]}
         elif network is not None:

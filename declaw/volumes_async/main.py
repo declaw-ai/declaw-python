@@ -226,15 +226,36 @@ class AsyncVolumes:
     @staticmethod
     async def create(
         name: str,
-        data: Union[
-            bytes, BinaryIO, Iterable[bytes], AsyncIterable[bytes], str, "os.PathLike[str]"
-        ],
+        data: Optional[
+            Union[bytes, BinaryIO, Iterable[bytes], AsyncIterable[bytes], str, "os.PathLike[str]"]
+        ] = None,
         *,
         content_type: str = "application/gzip",
         api_key: Optional[str] = None,
         domain: Optional[str] = None,
         request_timeout: Optional[float] = None,
     ) -> Volume:
+        """Create a volume named ``name``, optionally populated with ``data``.
+
+        ``POST /volumes`` is the canonical create endpoint. Without ``data`` (or
+        ``data=b""``) an empty volume is created; with ``data`` the body is
+        ingested as the volume's initial contents in one call (``data`` follows
+        the same rules as the sync ``Volumes.create``). With ``data`` the server
+        creates a file-granular volume (or a tarball blob if no file-granular
+        backend is configured); creating an empty volume (no ``data``) requires a
+        file-granular backend. ``empty(name)`` / ``ingest(name, data)`` remain
+        available for explicit, backend-specific control.
+        """
+        client = await _shared_client(api_key, domain, request_timeout)
+
+        if data is None or (isinstance(data, (bytes, bytearray)) and len(data) == 0):
+            resp = await client.post(
+                "/volumes",
+                params={"name": name},
+                timeout=request_timeout,
+            )
+            return Volume.from_dict(resp.json())
+
         if isinstance(data, (str, os.PathLike)):
             path = Path(data)
             if not path.exists():
@@ -243,7 +264,6 @@ class AsyncVolumes:
         else:
             body = data
 
-        client = await _shared_client(api_key, domain, request_timeout)
         resp = await client.post(
             "/volumes",
             params={"name": name},

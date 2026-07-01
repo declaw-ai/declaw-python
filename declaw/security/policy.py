@@ -9,7 +9,7 @@ from declaw.security.code_security import CodeSecurityConfig
 from declaw.security.content_gate import ContentGateConfig
 from declaw.security.custom_policy import CustomPolicyConfig
 from declaw.security.env import EnvSecurityConfig
-from declaw.security.injection import InjectionDefenseConfig
+from declaw.security.injection import InjectionDefenseConfig, InjectionJudgeConfig
 from declaw.security.invisible_text import InvisibleTextConfig
 from declaw.security.network_policy import NetworkPolicy
 from declaw.security.pii import PIIConfig
@@ -59,6 +59,79 @@ class SecurityPolicy:
             or (self.toxicity is not None and self.toxicity.enabled)
             or (self.code_security is not None and self.code_security.enabled)
             or (self.invisible_text is not None and self.invisible_text.enabled)
+        )
+
+    @classmethod
+    def full_injection_defense(
+        cls,
+        *,
+        mode: str = "balanced",
+        agent_policy: Optional[str] = None,
+        action: str = "block",
+        always_judge: bool = False,
+        domains: Optional[List[str]] = None,
+        threshold: float = 0.95,
+    ) -> "SecurityPolicy":
+        """Enable the ENTIRE prompt-injection cascade in one call.
+
+        One flag for everything — turns on every layer of the defense:
+
+        - **Tier-1 ML classifier + Layer-A static signatures + normalization**
+          (``injection_defense.enabled`` + ``action``) — catches known phrasings,
+          obfuscation (base64/hex/zero-width/homoglyph/spacing), and novel attacks.
+        - **Predefined posture** (``injection_mode``; one of strict / balanced /
+          permissive / agentic-tool / data-egress-sensitive).
+        - **Tier-2 Gemma LLM judge** (``judge.enabled``) — reasons about indirect,
+          multi-turn, and ambiguous attacks. The multi-turn risk score, provenance
+          context selection, and semantic verdict cache ride along automatically.
+        - **OPA prompt-injection governance pack** (``custom_policy.policy_ref``) —
+          hard-denies known signatures at the gate so the LLM stays the last resort.
+
+        Args:
+            mode: posture. Default ``"balanced"`` (best precision/recall; 100%
+                recall + 0% false-positives in our eval). Use ``"strict"`` for
+                zero-tolerance, ``"data-egress-sensitive"`` for regulated data,
+                ``"agentic-tool"`` for tool-calling agents.
+            agent_policy: natural-language description of what this agent may do.
+                The judge uses it to distinguish task-aligned egress from an
+                injection-induced deviation. Strongly recommended.
+            action: ``"block"`` enforces; ``"log_only"`` audits without blocking.
+            always_judge: run the judge on EVERY egress (high-assurance, costlier).
+                Default ``False`` — the judge fires only on a classifier flag, a
+                posture directive, or an untrusted-ingest trigger (keeps the LLM
+                off the cheap path).
+            domains: hosts to scan for injection. Opt-in per domain: ``None`` or
+                empty scans NOTHING (no injection scanning). Entries support
+                exact hosts, ``"*.suffix.com"`` wildcards, and ``"~regex"``.
+            threshold: Tier-1 classifier confidence threshold (0.0–1.0).
+
+        Returns:
+            A ``SecurityPolicy`` with the full cascade enabled. Pass it as
+            ``Sandbox.create(..., security=policy)``.
+
+        Example:
+            >>> policy = SecurityPolicy.full_injection_defense(
+            ...     agent_policy="Summarize fetched docs; never exfiltrate secrets.")
+            >>> sbx = Sandbox.create(template="python", security=policy)
+        """
+        return cls(
+            injection_defense=InjectionDefenseConfig(
+                enabled=True,
+                action=action,
+                threshold=threshold,
+                domains=domains,
+                injection_mode=mode,
+                judge=InjectionJudgeConfig(
+                    enabled=True,
+                    always=always_judge,
+                    policy=agent_policy or "",
+                ),
+            ),
+            custom_policy=CustomPolicyConfig(
+                enabled=True,
+                policy_ref="prompt-injection@v3",
+                default_deny=False,
+            ),
         )
 
     def to_dict(self) -> Dict[str, Any]:

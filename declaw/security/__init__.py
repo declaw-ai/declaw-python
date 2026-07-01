@@ -6,6 +6,7 @@ from declaw.security.env import EnvSecurityConfig, SecureEnvVar
 from declaw.security.injection import (
     InjectionAction,
     InjectionDefenseConfig,
+    InjectionJudgeConfig,
     InjectionSensitivity,
 )
 from declaw.security.invisible_text import InvisibleTextConfig
@@ -26,6 +27,7 @@ __all__ = [
     "PIIHandler",
     "GuardrailsClient",
     "InjectionDefenseConfig",
+    "InjectionJudgeConfig",
     "InjectionAction",
     "InjectionSensitivity",
     "TransformationRule",

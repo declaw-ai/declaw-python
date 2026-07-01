@@ -365,22 +365,40 @@ class Volumes:
     @staticmethod
     def create(
         name: str,
-        data: Union[bytes, BinaryIO, Iterable[bytes], str, "os.PathLike[str]"],
+        data: Optional[Union[bytes, BinaryIO, Iterable[bytes], str, "os.PathLike[str]"]] = None,
         *,
         content_type: str = "application/gzip",
         api_key: Optional[str] = None,
         domain: Optional[str] = None,
         request_timeout: Optional[float] = None,
     ) -> Volume:
-        """Upload a tarball and return the registered Volume.
+        """Create a volume named ``name``, optionally populated with ``data``.
 
-        `data` may be:
-            - bytes: uploaded as-is;
+        ``POST /volumes`` is the canonical create endpoint. Without ``data`` (or
+        ``data=b""``) an empty volume is created; with ``data`` the body is
+        ingested as the volume's initial contents in one call. ``data`` may be:
+            - bytes: sent as a gzip tar.gz stream as-is;
             - a file-like object open in binary mode: streamed as-is;
             - an iterable of bytes chunks: streamed as-is;
             - a path-like pointing to a file or directory: packed into a
-              tar.gz in memory and uploaded.
+              tar.gz in memory and sent.
+
+        With ``data`` the server creates a file-granular volume (or a legacy
+        tarball blob if no file-granular backend is configured). Creating an
+        empty volume (no ``data``) requires a file-granular backend. ``empty(name)``
+        / ``ingest(name, data)`` remain available for explicit, backend-specific
+        control.
         """
+        client = Volumes._client(api_key=api_key, domain=domain, request_timeout=request_timeout)
+
+        if data is None or (isinstance(data, (bytes, bytearray)) and len(data) == 0):
+            resp = client.post(
+                "/volumes",
+                params={"name": name},
+                timeout=request_timeout,
+            )
+            return Volume.from_dict(resp.json())
+
         if isinstance(data, (str, os.PathLike)):
             path = Path(data)
             if not path.exists():
@@ -389,7 +407,6 @@ class Volumes:
         else:
             body = data
 
-        client = Volumes._client(api_key=api_key, domain=domain, request_timeout=request_timeout)
         resp = client.post(
             "/volumes",
             params={"name": name},

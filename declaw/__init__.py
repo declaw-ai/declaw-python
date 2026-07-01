@@ -82,6 +82,7 @@ from declaw.security.env import EnvSecurityConfig, SecureEnvVar
 from declaw.security.injection import (
     InjectionAction,
     InjectionDefenseConfig,
+    InjectionJudgeConfig,
     InjectionSensitivity,
 )
 from declaw.security.invisible_text import InvisibleTextConfig
@@ -94,6 +95,13 @@ from declaw.security.transformations import TransformationRule, TransformDirecti
 from declaw.template.main import BuildInfo, CopyItem, TemplateBase, TemplateBuildStatus
 from declaw.template_async.main import AsyncTemplate
 from declaw.template_sync.main import Template
+from declaw.vault import VaultClient, expand_vault_refs
+from declaw.vault_async import AsyncVaultClient, expand_vault_refs_async
+from declaw.vault_models import (
+    VaultPreset,
+    VaultScope,
+    VaultSecret,
+)
 from declaw.volumes.main import (
     FileEntry,
     Volume,
@@ -165,6 +173,7 @@ __all__ = [
     "PIIHandler",
     "GuardrailsClient",
     "InjectionDefenseConfig",
+    "InjectionJudgeConfig",
     "InjectionAction",
     "InjectionSensitivity",
     "TransformationRule",
@@ -229,4 +238,12 @@ __all__ = [
     "DepositInfo",
     "UsageSummary",
     "WalletInfo",
+    # Vault management
+    "VaultClient",
+    "AsyncVaultClient",
+    "expand_vault_refs",
+    "expand_vault_refs_async",
+    "VaultScope",
+    "VaultSecret",
+    "VaultPreset",
 ]

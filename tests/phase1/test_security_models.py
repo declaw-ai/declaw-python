@@ -100,6 +100,48 @@ class TestInjectionDefenseConfig:
         d = cfg.to_dict()
         assert d["action"] == "log_only"
 
+    def test_domains_default_none(self):
+        cfg = InjectionDefenseConfig()
+        assert cfg.domains is None
+
+    def test_to_dict_omits_domains_when_unset(self):
+        cfg = InjectionDefenseConfig(enabled=True)
+        d = cfg.to_dict()
+        assert "domains" not in d
+
+    def test_to_dict_omits_domains_when_empty(self):
+        # Injection scanning is opt-in per domain; an empty list means "no
+        # scanning", which is the wire default, so it is omitted.
+        cfg = InjectionDefenseConfig(enabled=True, domains=[])
+        d = cfg.to_dict()
+        assert "domains" not in d
+
+    def test_to_dict_with_domains(self):
+        cfg = InjectionDefenseConfig(
+            enabled=True,
+            domains=["api.anthropic.com", "*.openai.com", "~^api\\..*\\.example\\.com$"],
+        )
+        d = cfg.to_dict()
+        assert d["domains"] == [
+            "api.anthropic.com",
+            "*.openai.com",
+            "~^api\\..*\\.example\\.com$",
+        ]
+
+    def test_round_trip_with_domains(self):
+        cfg = InjectionDefenseConfig(
+            enabled=True, action="block", domains=["api.anthropic.com", "*.openai.com"]
+        )
+        restored = InjectionDefenseConfig.from_dict(cfg.to_dict())
+        assert restored.enabled is True
+        assert restored.action == "block"
+        assert restored.domains == ["api.anthropic.com", "*.openai.com"]
+
+    def test_round_trip_without_domains(self):
+        cfg = InjectionDefenseConfig(enabled=True)
+        restored = InjectionDefenseConfig.from_dict(cfg.to_dict())
+        assert restored.domains is None
+
 
 class TestTransformationRule:
     def test_basic(self):
@@ -845,3 +887,75 @@ class TestContentGateImportSmoke:
         from declaw.security import ContentGateConfig
 
         assert ContentGateConfig is not None
+
+
+def test_full_injection_defense_factory_enables_all_layers():
+    """SecurityPolicy.full_injection_defense() turns on the whole cascade in one call."""
+    from declaw.security.policy import SecurityPolicy
+
+    d = SecurityPolicy.full_injection_defense(agent_policy="summarize docs").to_dict()
+    inj = d["injection_defense"]
+    assert inj["enabled"] is True
+    assert inj["action"] == "block"
+    assert inj["injection_mode"] == "balanced"
+    assert inj["judge"]["enabled"] is True
+    assert inj["judge"]["policy"] == "summarize docs"
+    assert d["custom_policy"]["enabled"] is True
+    assert d["custom_policy"]["policy_ref"] == "prompt-injection@v3"
+
+
+def test_full_injection_defense_factory_strict_always():
+    from declaw.security.policy import SecurityPolicy
+
+    d = SecurityPolicy.full_injection_defense(mode="strict", always_judge=True).to_dict()
+    assert d["injection_defense"]["injection_mode"] == "strict"
+    assert d["injection_defense"]["judge"]["always"] is True
+
+
+class TestSecurityPolicyInjectionDomains:
+    def test_domains_serialized_in_injection_defense(self):
+        policy = SecurityPolicy(
+            injection_defense=InjectionDefenseConfig(
+                enabled=True,
+                action="block",
+                domains=["api.anthropic.com", "*.openai.com"],
+            )
+        )
+        d = policy.to_dict()
+        assert d["injection_defense"]["domains"] == ["api.anthropic.com", "*.openai.com"]
+
+    def test_domains_omitted_when_unset(self):
+        policy = SecurityPolicy(injection_defense=InjectionDefenseConfig(enabled=True))
+        d = policy.to_dict()
+        assert "domains" not in d["injection_defense"]
+
+    def test_domains_omitted_when_empty(self):
+        policy = SecurityPolicy(injection_defense=InjectionDefenseConfig(enabled=True, domains=[]))
+        d = policy.to_dict()
+        assert "domains" not in d["injection_defense"]
+
+    def test_domains_round_trip_via_security_policy(self):
+        policy = SecurityPolicy(
+            injection_defense=InjectionDefenseConfig(
+                enabled=True,
+                domains=["api.anthropic.com", "~^api\\..*\\.example\\.com$"],
+            )
+        )
+        restored = SecurityPolicy.from_dict(policy.to_dict())
+        assert restored.injection_config.domains == [
+            "api.anthropic.com",
+            "~^api\\..*\\.example\\.com$",
+        ]
+
+    def test_domains_json_serializable(self):
+        policy = SecurityPolicy(
+            injection_defense=InjectionDefenseConfig(enabled=True, domains=["api.anthropic.com"])
+        )
+        parsed = json.loads(policy.to_json())
+        assert parsed["injection_defense"]["domains"] == ["api.anthropic.com"]
+
+    def test_full_injection_defense_factory_passes_domains(self):
+        d = SecurityPolicy.full_injection_defense(
+            domains=["api.anthropic.com", "*.openai.com"]
+        ).to_dict()
+        assert d["injection_defense"]["domains"] == ["api.anthropic.com", "*.openai.com"]

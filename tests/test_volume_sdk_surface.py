@@ -228,16 +228,47 @@ class TestIngest:
 
 
 # ---------------------------------------------------------------------------
-# create: Content-Type application/gzip
+# create: POST /volumes — no data → empty body, with data → gzip tar.gz body
 # ---------------------------------------------------------------------------
-class TestCreateContentType:
+class TestCreate:
     @respx.mock
-    def test_create_sends_application_gzip(self):
+    def test_create_with_data_posts_gzip(self):
         route = respx.post(f"{API_URL}/volumes").mock(
             return_value=httpx.Response(201, json=VOLUME_RESP)
         )
         Volumes.create("data", b"\x1f\x8b body")
+        req = route.calls.last.request
+        assert req.url.params.get("name") == "data"
+        assert req.headers["content-type"] == "application/gzip"
+        assert req.content == b"\x1f\x8b body"
+
+    @respx.mock
+    def test_create_without_data_posts_empty(self):
+        route = respx.post(f"{API_URL}/volumes").mock(
+            return_value=httpx.Response(201, json=VOLUME_RESP)
+        )
+        Volumes.create("scratch")
+        assert route.called
+        assert route.calls.last.request.url.params.get("name") == "scratch"
+        assert not route.calls.last.request.content  # no body
+
+    @respx.mock
+    @pytest.mark.asyncio
+    async def test_async_create_with_data_posts_gzip(self):
+        route = respx.post(f"{API_URL}/volumes").mock(
+            return_value=httpx.Response(201, json=VOLUME_RESP)
+        )
+        await AsyncVolumes.create("data", b"\x1f\x8b body")
         assert route.calls.last.request.headers["content-type"] == "application/gzip"
+
+    @respx.mock
+    @pytest.mark.asyncio
+    async def test_async_create_without_data_posts_empty(self):
+        route = respx.post(f"{API_URL}/volumes").mock(
+            return_value=httpx.Response(201, json=VOLUME_RESP)
+        )
+        await AsyncVolumes.create("scratch")
+        assert route.called
 
 
 # ---------------------------------------------------------------------------
