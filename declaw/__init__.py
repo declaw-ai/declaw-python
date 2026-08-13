@@ -14,6 +14,11 @@ from declaw.account_models import (
     UsageSummary,
     WalletInfo,
 )
+from declaw.api._idempotency import (
+    CODE_IDEMPOTENCY_IN_PROGRESS,
+    CODE_IDEMPOTENCY_KEY_REUSED,
+    CODE_TEMPLATE_NOT_READY,
+)
 from declaw.api.async_client import AsyncApiClient
 from declaw.api.client import ApiClient
 from declaw.connection_config import ConnectionConfig
@@ -119,6 +124,10 @@ from declaw.volumes_async.main import (
 __all__ = [
     # Connection
     "ConnectionConfig",
+    # Error codes — branch on SandboxException.code, never on the message
+    "CODE_IDEMPOTENCY_IN_PROGRESS",
+    "CODE_IDEMPOTENCY_KEY_REUSED",
+    "CODE_TEMPLATE_NOT_READY",
     # Exceptions
     "SandboxError",
     "SandboxException",

@@ -5,6 +5,29 @@ All notable changes to the Declaw Python SDK are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.5.0]
+
+_2026-08 train: idempotent sandbox creation._
+
+### Added
+
+- `Sandbox.create` and `AsyncSandbox.create` now send an `Idempotency-Key`. A
+  create that times out or is retried no longer risks leaving a second running,
+  billable sandbox the caller has no handle for. The key is generated once per
+  logical create and reused across that call's retries.
+- A `409` carrying `idempotency_in_progress` is retried automatically, honoring
+  `Retry-After` — this is how a caller recovers the sandbox ID when the original
+  response was lost.
+- Exceptions now carry `.code`, the API's machine-readable error code. Branch on
+  it rather than the message; `409` means two unrelated things on this endpoint
+  and only one of them is retryable.
+
+### Changed
+
+- Retry backoff is jittered in both the sync and async clients. It was
+  `delay * (attempt + 1)` exactly, so clients that failed together retried in
+  lockstep.
+
 ## [1.4.0]
 
 _2026-07 train: credential vault client + injection domain scoping._

@@ -7,6 +7,7 @@ if TYPE_CHECKING:
     from declaw.security.policy import SecurityPolicy
     from declaw.volumes.main import VolumeAttachment
 
+from declaw.api._idempotency import new_idempotency_key
 from declaw.api.async_client import AsyncApiClient, get_shared_async_client
 from declaw.connection_config import ConnectionConfig
 from declaw.sandbox.commands.models import CommandResult, ProcessInfo
@@ -145,7 +146,16 @@ class AsyncSandbox(SandboxBase):
         if volumes:
             body["volumes"] = [v.to_dict() if hasattr(v, "to_dict") else dict(v) for v in volumes]
 
-        resp = await client.post("/sandboxes", json=body, timeout=request_timeout)
+        # One key per LOGICAL create, generated here so every retry inside
+        # _request_with_retry reuses it. Generating it per attempt would defeat
+        # the mechanism entirely — the server would treat each retry as a new
+        # create, which is the duplicate-sandbox bug the key exists to fix.
+        resp = await client.post(
+            "/sandboxes",
+            json=body,
+            timeout=request_timeout,
+            headers={"Idempotency-Key": new_idempotency_key()},
+        )
         data = resp.json()
         return cls(
             sandbox_id=data["sandbox_id"],

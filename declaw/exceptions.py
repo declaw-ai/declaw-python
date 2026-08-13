@@ -6,8 +6,22 @@ from typing import Optional
 class SandboxError(Exception):
     """Base exception for all Declaw sandbox errors."""
 
-    def __init__(self, message: str = "", *, sandbox_id: str | None = None):
+    #: Machine-readable error code from the API's ``code`` field, or ``""``.
+    #:
+    #: Declared on the class so EVERY exception has the attribute, including the
+    #: ones built by their own constructors (``RateLimitException``,
+    #: ``InsufficientBalanceException``). Assigning it only where the generic
+    #: path raises left those two without it, so ``except SandboxError as e:
+    #: e.code`` raised AttributeError for exactly the callers trying to be
+    #: careful.
+    #:
+    #: Branch on this rather than the message: 409 means two unrelated things on
+    #: POST /sandboxes and only one of them is retryable.
+    code: str = ""
+
+    def __init__(self, message: str = "", *, sandbox_id: str | None = None, code: str = ""):
         self.sandbox_id = sandbox_id
+        self.code = code
         super().__init__(message)
 
 

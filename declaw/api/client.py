@@ -7,6 +7,17 @@ from typing import Any, AsyncIterable, BinaryIO, Dict, Iterable, Optional, Tuple
 
 import httpx
 
+from declaw.api._idempotency import (
+    error_code,
+    retry_jitter,
+    should_retry_conflict,
+)
+
+# Aliased: _raise_for_status has a LOCAL named retry_after (the 429 header
+# value), which shadows the import inside that function. Harmless today because
+# the function is not called there, but it is a trap for the next edit — a call
+# would silently hit a float or None instead of the parser.
+from declaw.api._idempotency import retry_after as parse_retry_after
 from declaw.connection_config import ConnectionConfig
 from declaw.exceptions import (
     AuthenticationException,
@@ -99,6 +110,10 @@ class ApiClient:
             message = body.get("message", body.get("error", response.text))
         except Exception:
             message = response.text
+        # Read once, attach to whichever exception is raised below. The 429 and
+        # 402 paths build their own exceptions, so an assignment placed only on
+        # the generic path silently skipped them.
+        code = error_code(response)
         if response.status_code == 429:
             retry_after: Optional[float] = None
             raw = response.headers.get("Retry-After")
@@ -107,14 +122,20 @@ class ApiClient:
                     retry_after = float(raw)
                 except ValueError:
                     pass
-            raise RateLimitException(f"HTTP 429: {message}", retry_after=retry_after)
+            exc = RateLimitException(f"HTTP 429: {message}", retry_after=retry_after)
+            exc.code = code
+            raise exc
         if response.status_code == 402:
             try:
                 wallet_type = response.json().get("wallet_type", "")
             except Exception:
                 wallet_type = ""
-            raise InsufficientBalanceException(f"HTTP 402: {message}", wallet_type=wallet_type)
-        raise exc_cls(f"HTTP {response.status_code}: {message}")
+            exc = InsufficientBalanceException(f"HTTP 402: {message}", wallet_type=wallet_type)
+            exc.code = code
+            raise exc
+        exc = exc_cls(f"HTTP {response.status_code}: {message}")
+        exc.code = code
+        raise exc
 
     def _request_with_retry(
         self,
@@ -143,15 +164,30 @@ class ApiClient:
                     headers=headers,
                     timeout=timeout,
                 )
+                # A 409 carrying idempotency_in_progress means the ORIGINAL
+                # create is still running and this key already owns it. Retrying
+                # the identical request is not a duplicate — it is how the caller
+                # recovers the sandbox ID when the first response was lost, which
+                # is the entire point of sending the key.
+                if (
+                    should_retry_conflict(response)
+                    and attempt < self._max_retries - 1
+                    and replayable
+                ):
+                    wait = parse_retry_after(response)
+                    if wait is None:
+                        wait = retry_jitter(self._retry_delay * (attempt + 1))
+                    time.sleep(wait)
+                    continue
                 if response.status_code >= 500 and attempt < self._max_retries - 1 and replayable:
-                    time.sleep(self._retry_delay * (attempt + 1))
+                    time.sleep(retry_jitter(self._retry_delay * (attempt + 1)))
                     continue
                 self._raise_for_status(response)
                 return response
             except (httpx.ConnectError, httpx.ReadTimeout) as e:
                 last_exc = e
                 if attempt < self._max_retries - 1 and replayable:
-                    time.sleep(self._retry_delay * (attempt + 1))
+                    time.sleep(retry_jitter(self._retry_delay * (attempt + 1)))
                     continue
                 raise TimeoutException(f"Connection failed after {self._max_retries} retries: {e}")
         raise SandboxException(f"Request failed: {last_exc}")
