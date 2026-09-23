@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Optional
+from typing import List, Optional
 
 
 class SandboxError(Exception):
@@ -64,7 +64,24 @@ class TemplateError(SandboxError):
 
 
 class BuildError(TemplateError):
-    """Raised when a template build fails."""
+    """Raised when a template build fails.
+
+    ``build_id`` and ``logs`` identify the failed build and hold its full
+    output, when the error comes from a build that ran (``Template.build``).
+    """
+
+    def __init__(
+        self,
+        message: str = "",
+        *,
+        build_id: str = "",
+        logs: Optional[List[str]] = None,
+        sandbox_id: str | None = None,
+        code: str = "",
+    ):
+        super().__init__(message, sandbox_id=sandbox_id, code=code)
+        self.build_id = build_id
+        self.logs: List[str] = list(logs or [])
 
 
 class FileUploadError(SandboxError):

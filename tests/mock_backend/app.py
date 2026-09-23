@@ -25,6 +25,7 @@ _sandboxes: Dict[str, Dict[str, Any]] = {}
 _sandbox_dirs: Dict[str, str] = {}
 _processes: Dict[str, Dict[int, Dict[str, Any]]] = {}
 _pid_counter = 100
+_builds: Dict[str, str] = {}  # build_id -> template_id
 
 
 def _next_pid() -> int:
@@ -402,19 +403,26 @@ async def resize_pty(sandbox_id: str, pid: int, request: Request):
 # --- Templates ---
 
 
-@app.post("/templates/build")
+@app.post("/templates/build", status_code=201)
 async def build_template(request: Request):
+    # Like sandbox-manager: the spec is nested under "template", the alias is
+    # required, and starting a build always answers "building" with no logs —
+    # the logs only come from GET /templates/builds/:build_id.
     body = await request.json()
-    build_id = f"build-{uuid.uuid4().hex[:8]}"
-    status = "completed" if not body.get("background") else "building"
-    return {
-        "build_id": build_id,
-        "status": status,
-        "template_id": f"tpl-{body.get('alias', 'custom')}",
-        "logs": ["Step 1: Building...", "Step 2: Done."],
-    }
+    if not body.get("alias"):
+        raise HTTPException(status_code=400, detail="alias is required")
+    build_id = f"bld-{uuid.uuid4().hex[:8]}"
+    _builds[build_id] = f"tpl-{uuid.uuid4().hex[:16]}"
+    return {"build_id": build_id, "status": "building", "template_id": _builds[build_id]}
 
 
 @app.get("/templates/builds/{build_id}")
 async def get_build_status(build_id: str):
-    return {"build_id": build_id, "status": "completed", "logs": ["Done."]}
+    if build_id not in _builds:
+        raise HTTPException(status_code=404, detail="build not found")
+    return {
+        "build_id": build_id,
+        "status": "completed",
+        "template_id": _builds[build_id],
+        "logs": ["Step 1: Building...", "Step 2: Done."],
+    }

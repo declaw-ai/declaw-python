@@ -5,6 +5,43 @@ All notable changes to the Declaw Python SDK are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.6.0]
+
+_2026-09 train: working template builds._
+
+### Added
+
+- `AsyncTemplate.build_in_background()`, which was documented but missing.
+- `build_timeout` on `Template.build()` and `AsyncTemplate.build()`,
+  `BuildInfo.logs`, `TemplateBuildStatus.template_id`, and `build_id` /
+  `logs` on `BuildException`.
+- Status checks that fail temporarily while waiting (5xx, 408, 429,
+  connection errors) are retried for up to two minutes instead of ending the
+  wait. The server keeps the newest 2,000 lines of a build's output; if more
+  arrive between two status checks, a `... [earlier build output truncated]`
+  line marks the gap.
+
+### Changed
+
+- `Template.build()` and `AsyncTemplate.build()` now wait for the build to
+  finish, as documented, and return a `BuildInfo` whose `logs` hold the
+  output. A failed build raises `BuildException` with its `build_id` and
+  `logs`. A build still running after `build_timeout` seconds (default one
+  hour) raises `TimeoutException` naming it; the build keeps running, and
+  `get_build_status()` follows it. To return immediately, use
+  `build_in_background()`.
+- A template that uses `copy()` now raises `InvalidArgumentException` when
+  built, before anything is sent. `copy()` never copied anything: a build
+  cannot upload local files, and the copies were silently dropped. Fetch files
+  in a `run_cmd` step, or use `from_dockerfile()`.
+
+### Fixed
+
+- Packages added with `apt_install()` were sent under a name the API ignores,
+  so builds succeeded without installing them. They are now installed.
+- `on_build_logs` never fired. It now receives each new line of build output
+  while `build()` waits.
+
 ## [1.5.1]
 
 ### Fixed
