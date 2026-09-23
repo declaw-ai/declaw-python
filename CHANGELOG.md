@@ -5,6 +5,18 @@ All notable changes to the Declaw Python SDK are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.5.1]
+
+### Fixed
+
+- A non-443 port in the domain is no longer dropped by `VaultClient`,
+  `AsyncVaultClient`, `AccountClient` and `AsyncAccountClient` when they
+  use the default domain, or by `Sandbox.create` / `AsyncSandbox.create`
+  when resolving `vault_refs`. On a deployment not served on 443
+  (on-prem, self-hosted, local dev) those calls dialed `:443` and failed
+  while other sandbox operations worked. Deployments on 443, including
+  `api.declaw.ai`, were never affected (#692).
+
 ## [1.5.0]
 
 _2026-08 train: idempotent sandbox creation._
