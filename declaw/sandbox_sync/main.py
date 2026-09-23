@@ -128,7 +128,13 @@ class Sandbox(SandboxBase):
         if envs:
             body["envs"] = envs
         if vault_refs:
-            vault_client = VaultClient(api_key=config.api_key, domain=config.domain)
+            vault_client = VaultClient(
+                api_key=config.api_key,
+                # config.domain has had its port split off by __post_init__, so
+                # passing it alone silently drops a non-443 port and the vault
+                # call dials :443. Rebuild host:port.
+                domain=f"{config.domain}:{config.port}",
+            )
             body["vault_refs"] = expand_vault_refs(vault_client, vault_refs)
 
         if not allow_internet_access:

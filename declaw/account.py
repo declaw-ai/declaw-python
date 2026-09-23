@@ -32,7 +32,7 @@ class AccountClient:
         defaults = ConnectionConfig()
         config = ConnectionConfig(
             api_key=api_key if api_key is not None else defaults.api_key,
-            domain=domain if domain is not None else defaults.domain,
+            domain=domain if domain is not None else ConnectionConfig.default_domain(),
             request_timeout=request_timeout,
         )
         self._client = ApiClient(config)

@@ -123,7 +123,11 @@ class AsyncSandbox(SandboxBase):
         if envs:
             body["envs"] = envs
         if vault_refs:
-            vault_client = AsyncVaultClient(api_key=config.api_key, domain=config.domain)
+            vault_client = AsyncVaultClient(
+                api_key=config.api_key,
+                # see sandbox_sync: config.domain drops the port
+                domain=f"{config.domain}:{config.port}",
+            )
             body["vault_refs"] = await expand_vault_refs_async(vault_client, vault_refs)
         if not allow_internet_access:
             body["network"] = {"deny_out": [ALL_TRAFFIC]}
