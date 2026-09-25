@@ -3,8 +3,9 @@ from __future__ import annotations
 import asyncio
 from typing import Callable, Optional
 
-from declaw.api.async_client import get_shared_async_client
+from declaw.api.async_client import AsyncApiClient, get_shared_async_client
 from declaw.connection_config import ConnectionConfig
+from declaw.exceptions import InvalidArgumentError
 from declaw.template.main import (
     DEFAULT_BUILD_TIMEOUT,
     BuildInfo,
@@ -51,25 +52,10 @@ class AsyncTemplate:
                 supported yet.
         """
         body = build_request_body(template, alias, cpu_count, memory_mb, disk_mb)
-        config = ConnectionConfig(
-            api_key=api_key or ConnectionConfig().api_key,
-            domain=domain or ConnectionConfig.default_domain(),
-        )
-        client = await get_shared_async_client(config)
+        client = await _shared_client(api_key, domain)
         resp = await client.post("/templates/build", json=body, timeout=request_timeout)
         info = BuildInfo.from_dict(resp.json())
-
-        watcher = _BuildWatcher(info, build_timeout, on_build_logs)
-        done = watcher.start()
-        while done is None:
-            await asyncio.sleep(watcher.poll_interval)
-            try:
-                resp = await client.get(watcher.status_path, timeout=request_timeout)
-            except Exception as err:
-                watcher.poll_failed(err)
-                continue
-            done = watcher.observe(TemplateBuildStatus.from_dict(resp.json()))
-        return done
+        return await _wait_for_build(client, info, build_timeout, on_build_logs, request_timeout)
 
     @staticmethod
     async def build_in_background(
@@ -86,12 +72,42 @@ class AsyncTemplate:
         accepted it, with status ``building``. Follow the build with
         ``get_build_status``."""
         body = build_request_body(template, alias, cpu_count, memory_mb, disk_mb)
-        config = ConnectionConfig(
-            api_key=api_key or ConnectionConfig().api_key,
-            domain=domain or ConnectionConfig.default_domain(),
-        )
-        client = await get_shared_async_client(config)
+        client = await _shared_client(api_key, domain)
         resp = await client.post("/templates/build", json=body, timeout=request_timeout)
+        return BuildInfo.from_dict(resp.json())
+
+    @staticmethod
+    async def rebuild(
+        template_id: str,
+        on_build_logs: Optional[Callable[[str], None]] = None,
+        api_key: Optional[str] = None,
+        domain: Optional[str] = None,
+        request_timeout: Optional[float] = None,
+        build_timeout: float = DEFAULT_BUILD_TIMEOUT,
+    ) -> BuildInfo:
+        """Re-run the build of a template whose last build failed, and wait
+        for it like ``build``. See ``Template.rebuild`` for when a rebuild is
+        allowed and what is raised."""
+        info = await AsyncTemplate.rebuild_in_background(
+            template_id, api_key=api_key, domain=domain, request_timeout=request_timeout
+        )
+        client = await _shared_client(api_key, domain)
+        return await _wait_for_build(client, info, build_timeout, on_build_logs, request_timeout)
+
+    @staticmethod
+    async def rebuild_in_background(
+        template_id: str,
+        api_key: Optional[str] = None,
+        domain: Optional[str] = None,
+        request_timeout: Optional[float] = None,
+    ) -> BuildInfo:
+        """Queue a rebuild of a failed template and return as soon as the
+        server has accepted it, with status ``building``. Follow the build
+        with ``get_build_status``."""
+        if not template_id:
+            raise InvalidArgumentError("template_id is required")
+        client = await _shared_client(api_key, domain)
+        resp = await client.post(f"/templates/{template_id}/rebuild", timeout=request_timeout)
         return BuildInfo.from_dict(resp.json())
 
     @staticmethod
@@ -101,10 +117,38 @@ class AsyncTemplate:
         domain: Optional[str] = None,
         request_timeout: Optional[float] = None,
     ) -> TemplateBuildStatus:
-        config = ConnectionConfig(
+        client = await _shared_client(api_key, domain)
+        resp = await client.get(f"/templates/builds/{build_id}", timeout=request_timeout)
+        return TemplateBuildStatus.from_dict(resp.json())
+
+
+async def _shared_client(api_key: Optional[str], domain: Optional[str]) -> AsyncApiClient:
+    """The shared client for an api_key/domain override, or the env defaults."""
+    return await get_shared_async_client(
+        ConnectionConfig(
             api_key=api_key or ConnectionConfig().api_key,
             domain=domain or ConnectionConfig.default_domain(),
         )
-        client = await get_shared_async_client(config)
-        resp = await client.get(f"/templates/builds/{build_id}", timeout=request_timeout)
-        return TemplateBuildStatus.from_dict(resp.json())
+    )
+
+
+async def _wait_for_build(
+    client: AsyncApiClient,
+    info: BuildInfo,
+    build_timeout: float,
+    on_build_logs: Optional[Callable[[str], None]],
+    request_timeout: Optional[float],
+) -> BuildInfo:
+    """Poll a started build until it finishes; the loop ``build`` and
+    ``rebuild`` share."""
+    watcher = _BuildWatcher(info, build_timeout, on_build_logs)
+    done = watcher.start()
+    while done is None:
+        await asyncio.sleep(watcher.poll_interval)
+        try:
+            resp = await client.get(watcher.status_path, timeout=request_timeout)
+        except Exception as err:
+            watcher.poll_failed(err)
+            continue
+        done = watcher.observe(TemplateBuildStatus.from_dict(resp.json()))
+    return done

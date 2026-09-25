@@ -186,7 +186,9 @@ def build_failed_error(status: TemplateBuildStatus) -> BuildError:
     tail = status.logs[-_FAILURE_LOG_LINES:]
     if tail:
         message += ":\n" + "\n".join(tail)
-    return BuildError(message, build_id=status.build_id, logs=status.logs)
+    return BuildError(
+        message, build_id=status.build_id, template_id=status.template_id or "", logs=status.logs
+    )
 
 
 @dataclass

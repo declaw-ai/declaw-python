@@ -7,6 +7,7 @@ import respx
 from declaw import AsyncTemplate, BuildInfo, Template, TemplateBase, TemplateBuildStatus
 from declaw.exceptions import (
     BuildError,
+    ConflictError,
     InvalidArgumentError,
     NotFoundError,
     RateLimitException,
@@ -110,6 +111,7 @@ class TestTemplateBuild:
         with pytest.raises(BuildError) as exc:
             Template.build(TemplateBase(), "my-template")
         assert exc.value.build_id == "bld-1"
+        assert exc.value.template_id == "tpl-1"  # what Template.rebuild() takes
         assert exc.value.logs == lines
         message = str(exc.value)
         assert "line 25" in message and "line 06" in message
@@ -259,6 +261,126 @@ def statuses_through(totals):
         build_status("completed" if i == last else "building", stored_logs(t))
         for i, t in enumerate(totals)
     ]
+
+
+REBUILD_URL = f"{API_URL}/templates/tpl-1/rebuild"
+ACCEPTED = {"build_id": "bld-1", "status": "building", "template_id": "tpl-1"}
+
+
+def mock_rebuild(statuses, accept=True):
+    """Mock the rebuild endpoint (202 accepted, or the 409 a non-failed template
+    gets) and the status polls."""
+    if accept:
+        submit = respx.post(REBUILD_URL).mock(return_value=httpx.Response(202, json=ACCEPTED))
+    else:
+        submit = respx.post(REBUILD_URL).mock(
+            return_value=httpx.Response(
+                409,
+                json={
+                    "message": 'template "a" is ready and cannot be rebuilt',
+                    "code": "template_immutable",
+                },
+            )
+        )
+    polls = respx.get(STATUS_URL).mock(side_effect=[httpx.Response(200, json=s) for s in statuses])
+    return submit, polls
+
+
+class TestTemplateRebuild:
+    @respx.mock
+    def test_rebuild_posts_no_body_and_waits(self):
+        submit, polls = mock_rebuild(
+            [
+                build_status("building", ["Step 1/2"]),
+                build_status("completed", ["Step 1/2", "Step 2/2"]),
+            ]
+        )
+        logs = []
+        info = Template.rebuild("tpl-1", on_build_logs=logs.append)
+        assert submit.call_count == 1
+        assert submit.calls[0].request.content == b""  # the server reuses the stored spec
+        assert logs == ["Step 1/2", "Step 2/2"]
+        assert (info.build_id, info.status, info.template_id) == ("bld-1", "completed", "tpl-1")
+        assert polls.call_count == 2
+
+    @respx.mock
+    def test_rebuild_in_background_returns_without_polling(self):
+        _, polls = mock_rebuild([build_status("completed", [])])
+        info = Template.rebuild_in_background("tpl-1")
+        assert (info.build_id, info.status, info.template_id) == ("bld-1", "building", "tpl-1")
+        assert polls.call_count == 0
+
+    @respx.mock
+    def test_failed_rebuild_raises_build_error(self):
+        mock_rebuild([build_status("failed", ["E: nope"])])
+        with pytest.raises(BuildError, match="nope") as exc:
+            Template.rebuild("tpl-1")
+        assert (exc.value.build_id, exc.value.template_id) == ("bld-1", "tpl-1")
+
+    @respx.mock
+    def test_rebuild_of_a_ready_template_is_a_conflict(self):
+        _, polls = mock_rebuild([], accept=False)
+        with pytest.raises(ConflictError, match="cannot be rebuilt"):
+            Template.rebuild("tpl-1")
+        with pytest.raises(ConflictError):
+            Template.rebuild_in_background("tpl-1")
+        assert polls.call_count == 0
+
+    @respx.mock
+    def test_empty_template_id_is_rejected_before_any_request(self):
+        submit, _ = mock_rebuild([])
+        with pytest.raises(InvalidArgumentError, match="template_id"):
+            Template.rebuild("")
+        with pytest.raises(InvalidArgumentError, match="template_id"):
+            Template.rebuild_in_background("")
+        assert submit.call_count == 0
+
+    @respx.mock
+    def test_rebuild_times_out_while_still_building(self):
+        mock_rebuild([build_status("building", [])] * 3)
+        with pytest.raises(TimeoutError, match="bld-1"):
+            Template.rebuild("tpl-1", build_timeout=0)
+
+
+class TestAsyncTemplateRebuild:
+    @respx.mock
+    @pytest.mark.asyncio
+    async def test_async_rebuild_waits_and_streams(self):
+        submit, polls = mock_rebuild(
+            [
+                build_status("building", ["Step 1/2"]),
+                build_status("completed", ["Step 1/2", "Step 2/2"]),
+            ]
+        )
+        logs = []
+        info = await AsyncTemplate.rebuild("tpl-1", on_build_logs=logs.append)
+        assert submit.calls[0].request.content == b""
+        assert logs == ["Step 1/2", "Step 2/2"]
+        assert (info.status, info.template_id) == ("completed", "tpl-1")
+        assert polls.call_count == 2
+
+    @respx.mock
+    @pytest.mark.asyncio
+    async def test_async_rebuild_in_background_returns_without_polling(self):
+        _, polls = mock_rebuild([build_status("completed", [])])
+        info = await AsyncTemplate.rebuild_in_background("tpl-1")
+        assert (info.build_id, info.status) == ("bld-1", "building")
+        assert polls.call_count == 0
+
+    @respx.mock
+    @pytest.mark.asyncio
+    async def test_async_rebuild_of_a_ready_template_is_a_conflict(self):
+        mock_rebuild([], accept=False)
+        with pytest.raises(ConflictError, match="cannot be rebuilt"):
+            await AsyncTemplate.rebuild("tpl-1")
+
+    @respx.mock
+    @pytest.mark.asyncio
+    async def test_async_empty_template_id_is_rejected(self):
+        submit, _ = mock_rebuild([])
+        with pytest.raises(InvalidArgumentError):
+            await AsyncTemplate.rebuild_in_background("")
+        assert submit.call_count == 0
 
 
 class TestLogCursor:

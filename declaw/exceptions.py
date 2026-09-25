@@ -66,8 +66,10 @@ class TemplateError(SandboxError):
 class BuildError(TemplateError):
     """Raised when a template build fails.
 
-    ``build_id`` and ``logs`` identify the failed build and hold its full
-    output, when the error comes from a build that ran (``Template.build``).
+    ``build_id``, ``template_id`` and ``logs`` identify the failed build and
+    its template and hold the build's full output, when the error comes from a
+    build that ran (``Template.build``, ``Template.rebuild``). ``template_id``
+    is what ``Template.rebuild`` takes to retry it.
     """
 
     def __init__(
@@ -75,12 +77,14 @@ class BuildError(TemplateError):
         message: str = "",
         *,
         build_id: str = "",
+        template_id: str = "",
         logs: Optional[List[str]] = None,
         sandbox_id: str | None = None,
         code: str = "",
     ):
         super().__init__(message, sandbox_id=sandbox_id, code=code)
         self.build_id = build_id
+        self.template_id = template_id
         self.logs: List[str] = list(logs or [])
 
 

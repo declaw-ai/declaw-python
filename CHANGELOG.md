@@ -5,6 +5,20 @@ All notable changes to the Declaw Python SDK are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.7.0]
+
+_2026-09b train: template rebuild._
+
+### Added
+
+- `Template.rebuild()` / `Template.rebuild_in_background()` (and the
+  `AsyncTemplate` twins): retry a template whose build failed
+  (`POST /templates/{id}/rebuild`), reusing its stored spec. `rebuild()` waits
+  like `build()`. A template that is not in the `failed` state raises
+  `ConflictError`. (#919)
+- `BuildError.template_id`: the failed build's template, so a retry is
+  `Template.rebuild(err.template_id)`. (#919)
+
 ## [1.6.0]
 
 _2026-09 train: working template builds._
